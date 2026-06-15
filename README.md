@@ -21,6 +21,7 @@
 - [Output Formats](#output-formats)
 - [Visualization](#visualization)
 - [Package Layout](#package-layout)
+- [Citation](#citation)
 - [License](#license)
 
 ---
@@ -499,6 +500,26 @@ brain2scalp/
 
 > [!WARNING]
 > **Research use only.** This tool has not been validated for clinical use and must not be used to guide patient treatment, clinical diagnosis or medical decision-making. For any clinical application, always rely on a qualified clinician and a certified neuronavigation system.
+
+---
+
+## Citation
+
+If you use brain2scalp in your research, please cite:
+
+**APA:**
+Politi, L. (2026). *brain2scalp* (v0.1.0). Zenodo. https://doi.org/10.5281/zenodo.20708695
+
+```bibtex
+@software{politi_brain2scalp_2026,
+  author    = {Politi, Leonardo},
+  title     = {brain2scalp},
+  year      = {2026},
+  publisher = {Zenodo},
+  doi       = {10.5281/zenodo.20708695},
+  url       = {https://doi.org/10.5281/zenodo.20708695}
+}
+```
 
 ---
 
