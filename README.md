@@ -37,6 +37,48 @@
 
 ## Installation
 
+### 1. Install Python
+
+Requires **Python >= 3.10**.
+
+**Check if you already have it:**
+```bash
+python --version
+# or
+python3 --version
+```
+
+If not `Python 3.10.x` or higher, download from https://www.python.org/downloads/ 
+
+---
+
+### 2. Create and activate environment (recommended)
+
+**venv**
+```bashSSS
+python -m venv env_name
+
+# Activate it
+# Windows:
+env_name\Scripts\activate
+# macOS / Linux:
+source env_name/bin/activate
+```
+
+**conda**
+```bash
+conda create -n env_name python=3.10
+
+# Activate it
+conda activate env_name
+```
+
+---
+
+### 3. Install brain2scalp
+
+**From PyPI** (recommended):
+
 ```bash
 # Core + CLI (no visualization)
 pip install brain2scalp
@@ -47,6 +89,29 @@ pip install "brain2scalp[viz]"
 # Development (adds pytest, ruff, mypy)
 pip install "brain2scalp[dev]"
 ```
+
+**From GitHub**:
+
+You need **Git** installed ([git-scm.com](https://git-scm.com/downloads)). Then:
+
+```bash
+git clone https://github.com/LeonardoPoliti/brain2scalp.git
+cd brain2scalp
+
+# Core + CLI
+pip install .
+
+# With visualization
+pip install ".[viz]"
+```
+
+**Verify the install:**
+```bash
+brain2scalp --help
+```
+You should see the CLI help text.
+
+---
 
 ### Requirements
 
@@ -59,6 +124,8 @@ pip install "brain2scalp[dev]"
 | scikit-image | 0.21 | Convex hull filling |
 | matplotlib | 3.7 | `[viz]` only |
 | plotly | 5.18 | `[viz]` only |
+
+All dependencies are installed automatically by `pip`.
 
 ---
 
@@ -393,7 +460,7 @@ x,y,z
 
 ### Interactive 3D viewer (`--viz3d`)
 
-Plotly HTML viewer with isosurface rendering of the head, scalp surface point cloud, and brain target / scalp entry markers. Includes threshold and opacity sliders. Supports up to 8 targets.
+Plotly HTML viewer with isosurface rendering of the head, scalp surface point cloud, and brain target / scalp entry markers. Includes threshold and opacity sliders. Supports up to 8 targets. Stride (settable via `--stride`) controls voxel subsampling for the isosurface: lower values give finer geometry but increase file size and browser render time; higher values are faster and lighter.
 
 ![Interactive 3D viewer](assets/viz_3d.png)
 
