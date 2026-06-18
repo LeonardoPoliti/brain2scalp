@@ -507,7 +507,7 @@ brain2scalp/
 If you use brain2scalp in your research, please cite:
 
 **APA:**
-Politi, L. (2026). *brain2scalp* (v0.1.0). Zenodo. https://doi.org/10.5281/zenodo.20708695
+Politi, L. (2026). *brain2scalp* (v0.2.0). Zenodo. https://doi.org/10.5281/zenodo.20708694 
 
 ```bibtex
 @software{politi_brain2scalp_2026,
@@ -515,8 +515,8 @@ Politi, L. (2026). *brain2scalp* (v0.1.0). Zenodo. https://doi.org/10.5281/zenod
   title     = {brain2scalp},
   year      = {2026},
   publisher = {Zenodo},
-  doi       = {10.5281/zenodo.20708695},
-  url       = {https://doi.org/10.5281/zenodo.20708695}
+  doi       = {10.5281/zenodo.20749002},
+  url       = {https://doi.org/10.5281/zenodo.20708694}
 }
 ```
 
@@ -524,6 +524,6 @@ Politi, L. (2026). *brain2scalp* (v0.1.0). Zenodo. https://doi.org/10.5281/zenod
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT - see [LICENSE](LICENSE).
 
 Copyright 2026 Leonardo Politi.
