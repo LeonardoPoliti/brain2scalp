@@ -169,13 +169,12 @@ brain2scalp --nii head.nii --target -46 20 32 --vizTarget --vizSteps --save-fig 
 ### Python API examples
 
 ```python
-from brain2scalp.core import run, run_full, run_multi, run_full_multi
+from brain2scalp.core import run
 
-# Single target - lightweight result (coordinates only)
+# Single target (coordinates only)
 result = run(
     nii_path="mni_icbm152_t1_tal_nlin_sym_09c.nii",
-    brain_target=[-46.0, 20.0, 32.0],
-    is_talairach=False,
+    targets=[-46.0, 20.0, 32.0],
 )
 
 print(result.scalp_entry_mni)    # [x, y, z] in MNI mm
@@ -183,25 +182,27 @@ print(result.distance_mm)        # brain-to-scalp distance (mm)
 print(result.projection_method)  # 'ray_cast' or 'nearest_neighbor'
 print(result.to_dict())          # JSON-serializable dict
 
-# Single target with volumetric arrays (needed for visualization)
-state = run_full(
+# Single target with volumetric arrays (for visualization)
+state = run(
     nii_path="head.nii",
-    brain_target=[-46.0, 20.0, 32.0],
+    targets=[-46.0, 20.0, 32.0],
+    full=True,
     surface_thickness_mm=1.5,
     k_local=100,
     verbose=True,
 )
 
-# Multiple targets - one atlas load, one result per target
-results = run_multi(
+# Multiple targets
+results = run(
     nii_path="head.nii",
     targets=[[-46.0, 20.0, 32.0], [10.0, -20.0, 45.0]],
 )
 
 # Multiple targets with volumetric arrays
-states = run_full_multi(
+states = run(
     nii_path="head.nii",
     targets=[[-46.0, 20.0, 32.0], [10.0, -20.0, 45.0]],
+    full=True,
     is_talairach=False,
     surface_thickness_mm=1.5,
 )
@@ -311,12 +312,17 @@ brain2scalp --nii PATH --target COORDS [options]
 
 ## Python API
 
-All functions share the same keyword arguments:
+```python
+from brain2scalp.core import run
+```
+
+### `run()` 
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `nii_path` | `str \| Path` | required | Full-head `.nii` or `.nii.gz` |
-| `brain_target` / `targets` | `list[float]` / `list[list[float]]` | required | Target(s) in mm |
+| `targets` | `list[float]` or `list[list[float]]` | required | Single `[x, y, z]` or list of triplets in mm |
+| `full` | `bool` | `False` | If `True`, return `PipelineState`(s) with volumetric arrays |
 | `threshold` | `float \| None` | `None` (auto) | Override head-mask threshold |
 | `is_talairach` | `bool` | `False` | Convert input from Talairach to MNI |
 | `is_native` | `bool` | `False` | Treat target as native scan mm space |
@@ -324,20 +330,35 @@ All functions share the same keyword arguments:
 | `k_local` | `int` | `100` | k-nearest scalp voxels for ray direction |
 | `verbose` | `bool` | `False` | Print progress to stdout |
 
-### `run()` - single target, lightweight
+Return type mirrors input shape:
+
+| `targets` | `full` | Return type |
+|---|---|---|
+| `[x, y, z]` | `False` | `ScalpResult` |
+| `[x, y, z]` | `True` | `PipelineState` |
+| `[[x,y,z], ...]` | `False` | `list[ScalpResult]` |
+| `[[x,y,z], ...]` | `True` | `list[PipelineState]` |
 
 ```python
-from brain2scalp.core import run
-
+# Single target → ScalpResult
 result = run(
     nii_path="mni_icbm152_t1_tal_nlin_sym_09c.nii",
-    brain_target=[-46.0, 20.0, 32.0],
-    is_talairach=False,
+    targets=[-46.0, 20.0, 32.0],
     verbose=True,
 )
+
+# Multiple targets → list[ScalpResult] 
+results = run(
+    nii_path="head.nii",
+    targets=[[-46.0, 20.0, 32.0], [10.0, -20.0, 45.0]],
+)
+
+# With volumetric arrays for visualization
+state = run("head.nii", [-46.0, 20.0, 32.0], full=True)
+states = run("head.nii", [[-46.0, 20.0, 32.0], [10.0, -20.0, 45.0]], full=True)
 ```
 
-Returns a `ScalpResult`:
+### `ScalpResult` attributes
 
 | Attribute | Type | Description |
 |---|---|---|
@@ -355,9 +376,7 @@ Returns a `ScalpResult`:
 | `surface_thickness_mm` | `float` | Erosion depth used |
 | `to_dict()` | `dict` | JSON-serializable representation |
 
-### `run_full()` - single target, with volumetric arrays
-
-Same signature as `run()`. Returns a `PipelineState` (extends `ScalpResult`) with additional NumPy arrays for visualization:
+### `PipelineState` - additional attributes (`full=True`)
 
 | Attribute | Description |
 |---|---|
@@ -368,26 +387,6 @@ Same signature as `run()`. Returns a `PipelineState` (extends `ScalpResult`) wit
 | `eroded` | Eroded mask (uint8) |
 | `surface` | Surface shell: filled XOR eroded (uint8) |
 | `scalp_surface_mni` | (N, 3) float64 — all surface voxel centers in MNI mm |
-
-### `run_multi()` / `run_full_multi()` - multiple targets
-
-```python
-from brain2scalp.core import run_multi, run_full_multi
-
-# Lightweight - one atlas load, one ScalpResult per target
-results = run_multi(
-    nii_path="head.nii",
-    targets=[[-46.0, 20.0, 32.0], [10.0, -20.0, 45.0]],
-)
-
-# With arrays - returns list[PipelineState]
-states = run_full_multi(
-    nii_path="head.nii",
-    targets=[[-46.0, 20.0, 32.0], [10.0, -20.0, 45.0]],
-    is_talairach=False,
-    surface_thickness_mm=1.5,
-)
-```
 ---
 
 ## Output Formats
@@ -478,7 +477,7 @@ brain2scalp/
 │   │   ├── atlas.py         Load, reorient, validate NIfTI
 │   │   ├── mask.py          Threshold → fill → erode → surface
 │   │   ├── projection.py    Ray-cast + nearest-neighbour fallback
-│   │   └── pipeline.py      run() / run_full() / run_multi() / run_full_multi()
+│   │   └── pipeline.py      run() 
 │   ├── cli/
 │   │   ├── main.py          argparse entry point
 │   │   └── formatters.py    text / JSON / CSV output

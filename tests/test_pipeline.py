@@ -6,12 +6,12 @@ Integration tests for core/pipeline.py using mocked IO and compute deps.
 All heavy NIfTI IO and expensive compute steps are patched so the tests run
 without a real NIfTI file.
 
-  - run_full_multi  returns the correct number of PipelineState objects
+  - run() with a list of targets returns the correct number of PipelineState objects (full=True)
   - NIfTI loading and mask building happen exactly once for N targets
   - find_scalp_entry is called once per target
   - All states in a multi-target run share the same volumetric array objects
-  - run_full delegates to run_full_multi and returns a single PipelineState
-  - run returns a ScalpResult (not a PipelineState)
+  - run() with a single target and full=True returns a single PipelineState
+  - run() with a single target returns a ScalpResult (not a PipelineState)
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ import numpy as np
 import pytest
 
 from brain2scalp.core.models import PipelineState, ScalpResult
-from brain2scalp.core.pipeline import run, run_full, run_full_multi, run_multi
+from brain2scalp.core.pipeline import run
 
 # ---------------------------------------------------------------------------
 # Shared fake data
@@ -78,95 +78,95 @@ def _mocked_pipeline():
 
 
 # ---------------------------------------------------------------------------
-# run_full_multi
+# multi-target, full=True  
 
-class TestRunFullMulti:
+class TestRunMultiFull:
     def test_single_target_returns_one_state(self):
         with _mocked_pipeline()[0]:
-            states = run_full_multi("fake.nii", [_TARGET_A])
+            states = run("fake.nii", [_TARGET_A], full=True)
         assert len(states) == 1
         assert isinstance(states[0], PipelineState)
 
     def test_two_targets_return_two_states(self):
         with _mocked_pipeline()[0]:
-            states = run_full_multi("fake.nii", [_TARGET_A, _TARGET_B])
+            states = run("fake.nii", [_TARGET_A, _TARGET_B], full=True)
         assert len(states) == 2
 
     def test_brain_target_stored_per_state(self):
         with _mocked_pipeline()[0]:
-            states = run_full_multi("fake.nii", [_TARGET_A, _TARGET_B])
+            states = run("fake.nii", [_TARGET_A, _TARGET_B], full=True)
         assert states[0].brain_target_mni == _TARGET_A
         assert states[1].brain_target_mni == _TARGET_B
 
     def test_scalp_entry_from_find_scalp_entry(self):
         with _mocked_pipeline()[0]:
-            states = run_full_multi("fake.nii", [_TARGET_A])
+            states = run("fake.nii", [_TARGET_A], full=True)
         assert states[0].scalp_entry_mni == pytest.approx(_FAKE_ENTRY.tolist())
         assert states[0].distance_mm == _FAKE_DIST
         assert states[0].projection_method == _FAKE_METHOD
 
     def test_states_share_same_data_array(self):
         with _mocked_pipeline()[0]:
-            states = run_full_multi("fake.nii", [_TARGET_A, _TARGET_B])
+            states = run("fake.nii", [_TARGET_A, _TARGET_B], full=True)
         assert states[0].data is states[1].data
 
     def test_states_share_same_mask(self):
         with _mocked_pipeline()[0]:
-            states = run_full_multi("fake.nii", [_TARGET_A, _TARGET_B])
+            states = run("fake.nii", [_TARGET_A, _TARGET_B], full=True)
         assert states[0].mask is states[1].mask
 
     def test_states_share_same_scalp_surface(self):
         with _mocked_pipeline()[0]:
-            states = run_full_multi("fake.nii", [_TARGET_A, _TARGET_B])
+            states = run("fake.nii", [_TARGET_A, _TARGET_B], full=True)
         assert states[0].scalp_surface_mni is states[1].scalp_surface_mni
 
     def test_nifti_loaded_exactly_once_for_two_targets(self):
         stack, mocks = _mocked_pipeline()
         with stack:
-            run_full_multi("fake.nii", [_TARGET_A, _TARGET_B])
+            run("fake.nii", [_TARGET_A, _TARGET_B], full=True)
         mocks["load_atlas"].assert_called_once()
 
     def test_head_mask_built_exactly_once_for_two_targets(self):
         stack, mocks = _mocked_pipeline()
         with stack:
-            run_full_multi("fake.nii", [_TARGET_A, _TARGET_B])
+            run("fake.nii", [_TARGET_A, _TARGET_B], full=True)
         mocks["build_head_mask"].assert_called_once()
 
     def test_find_scalp_entry_called_once_per_target(self):
         stack, mocks = _mocked_pipeline()
         with stack:
-            run_full_multi("fake.nii", [_TARGET_A, _TARGET_B])
+            run("fake.nii", [_TARGET_A, _TARGET_B], full=True)
         assert mocks["find_scalp_entry"].call_count == 2
 
     def test_talairach_flag_propagates(self):
         with _mocked_pipeline()[0]:
-            states = run_full_multi("fake.nii", [_TARGET_A], is_talairach=True)
+            states = run("fake.nii", [_TARGET_A], full=True, is_talairach=True)
         assert states[0].is_talairach is True
         assert states[0].coordinate_space == "talairach"
 
     def test_native_space_propagates(self):
         with _mocked_pipeline()[0]:
-            states = run_full_multi("fake.nii", [_TARGET_A], is_native=True)
+            states = run("fake.nii", [_TARGET_A], full=True, is_native=True)
         assert states[0].coordinate_space == "native"
 
 
 # ---------------------------------------------------------------------------
-# run_full (single-target wrapper)
+# single target, full=True
 
-class TestRunFull:
+class TestRunSingleFull:
     def test_returns_pipeline_state(self):
         with _mocked_pipeline()[0]:
-            state = run_full("fake.nii", _TARGET_A)
+            state = run("fake.nii", _TARGET_A, full=True)
         assert isinstance(state, PipelineState)
 
     def test_brain_target_matches_input(self):
         with _mocked_pipeline()[0]:
-            state = run_full("fake.nii", _TARGET_A)
+            state = run("fake.nii", _TARGET_A, full=True)
         assert state.brain_target_mni == _TARGET_A
 
     def test_volumetric_arrays_present(self):
         with _mocked_pipeline()[0]:
-            state = run_full("fake.nii", _TARGET_A)
+            state = run("fake.nii", _TARGET_A, full=True)
         assert state.data is not None
         assert state.affine is not None
         assert state.mask is not None
@@ -174,9 +174,9 @@ class TestRunFull:
 
 
 # ---------------------------------------------------------------------------
-# run (lightweight wrapper)
+# single target, full=False 
 
-class TestRun:
+class TestRunSingle:
     def test_returns_scalp_result(self):
         with _mocked_pipeline()[0]:
             result = run("fake.nii", _TARGET_A)
@@ -200,16 +200,43 @@ class TestRun:
 
 
 # ---------------------------------------------------------------------------
-# run_multi (multi-target lightweight wrapper)
+# dispatch: single [x,y,z] vs list [[x,y,z]]
+
+class TestDispatch:
+    def test_single_coords_returns_scalar(self):
+        with _mocked_pipeline()[0]:
+            result = run("fake.nii", _TARGET_A)
+        assert not isinstance(result, list)
+
+    def test_list_of_one_returns_list(self):
+        with _mocked_pipeline()[0]:
+            result = run("fake.nii", [_TARGET_A])
+        assert isinstance(result, list)
+        assert len(result) == 1
+
+    def test_single_full_returns_scalar(self):
+        with _mocked_pipeline()[0]:
+            result = run("fake.nii", _TARGET_A, full=True)
+        assert not isinstance(result, list)
+
+    def test_list_of_one_full_returns_list(self):
+        with _mocked_pipeline()[0]:
+            result = run("fake.nii", [_TARGET_A], full=True)
+        assert isinstance(result, list)
+        assert len(result) == 1
+
+
+# ---------------------------------------------------------------------------
+# multi-target, full=False
 
 class TestRunMulti:
     def test_returns_list_of_scalp_results(self):
         with _mocked_pipeline()[0]:
-            results = run_multi("fake.nii", [_TARGET_A, _TARGET_B])
+            results = run("fake.nii", [_TARGET_A, _TARGET_B])
         assert len(results) == 2
         assert all(type(r) is ScalpResult for r in results)
 
     def test_no_volumetric_arrays(self):
         with _mocked_pipeline()[0]:
-            results = run_multi("fake.nii", [_TARGET_A, _TARGET_B])
+            results = run("fake.nii", [_TARGET_A, _TARGET_B])
         assert not isinstance(results[0], PipelineState)

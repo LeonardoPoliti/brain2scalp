@@ -11,7 +11,7 @@ import sys
 import argparse
 from pathlib import Path
 
-from ..core.pipeline import run_full_multi, run_multi
+from ..core.pipeline import run
 from .formatters import format_csv, format_json, format_text
 
 #-----------------------------------------------------------------------------------------
@@ -313,11 +313,11 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         if needs_full:
-            states = run_full_multi(args.nii, targets, **_pipeline_kwargs)
+            states = run(args.nii, targets, full=True, **_pipeline_kwargs)
             results = [s.to_result() for s in states]
         else:
             states = []
-            results = run_multi(args.nii, targets, **_pipeline_kwargs)
+            results = run(args.nii, targets, **_pipeline_kwargs)
     except Exception as exc:  # noqa: BLE001
         print(f"error: {exc}", file=sys.stderr)
         return 1

@@ -3,18 +3,19 @@ core/pipeline.py
 -----------------
 Pipeline orchestrator.
 
-Public entry points (light = coords only, full = coords + volumetric arrays):
-
-run(nii_path, brain_target, ...)       single target, light → ScalpResult
-run_multi(nii_path, targets, ...)      multi target,  light → list[ScalpResult]
-run_full(nii_path, brain_target, ...)  single target, full  → PipelineState
-run_full_multi(nii_path, targets, ...) multi target,  full  → list[PipelineState]
+Public entry point:
+run(nii_path, targets, *, full=False, ...)
+    targets : [x, y, z]          → single result
+              [[x,y,z], ...]     → list of results
+    full    : False (default)    → ScalpResult(s)  - coords only
+              True               → PipelineState(s) - coords + volumetric arrays
 """
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Literal, overload
 
 import numpy as np
 
@@ -31,7 +32,58 @@ from .transform import talairach_to_mni
 
 #------------------------------------------------------------------------------
 
-def run_full_multi(
+@overload
+def run(nii_path: str | Path, targets: list[float], *, full: Literal[False] = ..., threshold: float | None = ..., is_talairach: bool = ..., is_native: bool = ..., surface_thickness_mm: float = ..., k_local: int = ..., verbose: bool = ...) -> ScalpResult: ...
+@overload
+def run(nii_path: str | Path, targets: list[float], *, full: Literal[True], threshold: float | None = ..., is_talairach: bool = ..., is_native: bool = ..., surface_thickness_mm: float = ..., k_local: int = ..., verbose: bool = ...) -> PipelineState: ...
+@overload
+def run(nii_path: str | Path, targets: list[list[float]], *, full: Literal[False] = ..., threshold: float | None = ..., is_talairach: bool = ..., is_native: bool = ..., surface_thickness_mm: float = ..., k_local: int = ..., verbose: bool = ...) -> list[ScalpResult]: ...
+@overload
+def run(nii_path: str | Path, targets: list[list[float]], *, full: Literal[True], threshold: float | None = ..., is_talairach: bool = ..., is_native: bool = ..., surface_thickness_mm: float = ..., k_local: int = ..., verbose: bool = ...) -> list[PipelineState]: ...
+
+def run(
+    nii_path: str | Path,
+    targets: list[float] | list[list[float]],
+    *,
+    full: bool = False,
+    threshold: float | None = None,
+    is_talairach: bool = False,
+    is_native: bool = False,
+    surface_thickness_mm: float = 1.5,
+    k_local: int = 100,
+    verbose: bool = False,
+) -> ScalpResult | PipelineState | list[ScalpResult] | list[PipelineState]:
+    """
+    Run the brain2scalp pipeline.
+
+    targets : single [x, y, z] or list of [x, y, z] triplets (MNI / Talairach / native mm).
+    full    : if True, return PipelineState(s) with volumetric arrays; otherwise ScalpResult(s).
+
+    Return type mirrors input shape: single target → single result, list → list.
+    """
+    is_single = isinstance(targets[0], (int, float))
+    target_list: list[list[float]] = [targets] if is_single else targets  # type: ignore[arg-type]
+
+    states = _run_pipeline(
+        nii_path,
+        target_list,
+        threshold=threshold,
+        is_talairach=is_talairach,
+        is_native=is_native,
+        surface_thickness_mm=surface_thickness_mm,
+        k_local=k_local,
+        verbose=verbose,
+    )
+
+    if full:
+        return states[0] if is_single else states
+    results = [s.to_result() for s in states]
+    return results[0] if is_single else results
+
+
+#------------------------------------------------------------------------------
+
+def _run_pipeline(
     nii_path: str | Path,
     targets: list[list[float]],
     *,
@@ -43,13 +95,9 @@ def run_full_multi(
     verbose: bool = False,
 ) -> list[PipelineState]:
     """
-    Run the brain-to-scalp pipeline for one or more targets.
-
-    Params:
-    nii_path : str or Path
-    targets  : list of [x, y, z] triplets (MNI or Talairach mm)
-    Returns:
-    list[PipelineState]  one per target; all share the same volumetric arrays ref.
+    Core pipeline implementation. Loads atlas and builds surface once, then
+    projects each target. Returns one PipelineState per target; all share the
+    same volumetric array references.
     """
     nii_path = Path(nii_path)
     _log = _make_logger(verbose)
@@ -63,27 +111,27 @@ def run_full_multi(
         _log(f"  Targets    : {n}")
     _log("")
 
-    # 1. Load atlas (once)
+    # 1. Load atlas
     _log("[1/5] Loading NIfTI and validating …")
     data, affine = load_atlas(nii_path, warn_native_space=not is_native)
     dx, dy, dz = voxel_size_mm(affine)
     _log(f"      Shape: {data.shape}  |  voxel size: ({dx:.2f}, {dy:.2f}, {dz:.2f}) mm")
 
-    # 2. Binary head mask (once)
+    # 2. Binary head mask
     _log("[2/5] Building binary head mask …")
     mask, used_thresh = build_head_mask(data, threshold=threshold)
     _log(f"      Threshold: {used_thresh:.2f}  |  head voxels: {int(mask.sum()):,}")
 
-    # 3. Fill holes (once)
+    # 3. Fill holes
     _log("[3/5] Filling holes (convex hull per axial slice) …")
     filled = fill_holes(mask)
     _log(f"      Filled voxels: {int(filled.sum()):,}  (+{int(filled.sum()-mask.sum()):,} holes sealed)")
 
-    # 4. Erode (once)
+    # 4. Erode
     _log(f"[4/5] Eroding by {surface_thickness_mm} mm …")
     eroded = erode_mask(filled, affine, surface_thickness_mm=surface_thickness_mm)
 
-    # 5. Surface extraction (once)
+    # 5. Surface extraction
     _log("[5/5] Extracting surface …")
     surface = extract_surface(filled, eroded)
     surface_voxels = np.argwhere(surface)
@@ -161,7 +209,7 @@ def run_full_multi(
             scalp_surface_mni=scalp_mni,
         ))
 
-    # Summary 
+    # Summary
     if not states:
         return states
 
@@ -197,85 +245,6 @@ def run_full_multi(
     _log(f"{'='*sep_w}\n")
 
     return states
-
-
-def run_full(
-    nii_path: str | Path,
-    brain_target: list[float],
-    *,
-    threshold: float | None = None,
-    is_talairach: bool = False,
-    is_native: bool = False,
-    surface_thickness_mm: float = 1.5,
-    k_local: int = 100,
-    verbose: bool = False,
-) -> PipelineState:
-    """Single-target wrapper around run_full_multi."""
-    return run_full_multi(
-        nii_path,
-        [brain_target],
-        threshold=threshold,
-        is_talairach=is_talairach,
-        is_native=is_native,
-        surface_thickness_mm=surface_thickness_mm,
-        k_local=k_local,
-        verbose=verbose,
-    )[0]
-
-
-def run(
-    nii_path: str | Path,
-    brain_target: list[float],
-    *,
-    threshold: float | None = None,
-    is_talairach: bool = False,
-    is_native: bool = False,
-    surface_thickness_mm: float = 1.5,
-    k_local: int = 100,
-    verbose: bool = False,
-) -> ScalpResult:
-    """
-    Run the pipeline for a single target; return a lightweight ScalpResult.
-
-    Same params as run_full().
-    """
-    return run_full(
-        nii_path,
-        brain_target,
-        threshold=threshold,
-        is_talairach=is_talairach,
-        is_native=is_native,
-        surface_thickness_mm=surface_thickness_mm,
-        k_local=k_local,
-        verbose=verbose,
-    ).to_result()
-
-
-def run_multi(
-    nii_path: str | Path,
-    targets: list[list[float]],
-    *,
-    threshold: float | None = None,
-    is_talairach: bool = False,
-    is_native: bool = False,
-    surface_thickness_mm: float = 1.5,
-    k_local: int = 100,
-    verbose: bool = False,
-) -> list[ScalpResult]:
-    """Run the pipeline for multiple targets; return lightweight ScalpResults."""
-    return [
-        s.to_result()
-        for s in run_full_multi(
-            nii_path,
-            targets,
-            threshold=threshold,
-            is_talairach=is_talairach,
-            is_native=is_native,
-            surface_thickness_mm=surface_thickness_mm,
-            k_local=k_local,
-            verbose=verbose,
-        )
-    ]
 
 
 def _make_logger(verbose: bool):

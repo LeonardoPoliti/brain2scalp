@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name        = "brain2scalp"
-version     = "0.1.0"
+version     = "0.2.0"
 description = "Map MNI, Talairach or native-space brain coordinates to their nearest scalp entry point on NIfTI head scan"
 readme      = "README.md"
 license     = "MIT"
